@@ -1,72 +1,53 @@
+import streamlit as st
+from tinydb import TinyDB
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 import time
 
-# CSV-Dateiname, den auch dein MQTT-Skript verwendet
-csv_filename = "bottles_data.csv"
+st.set_page_config(page_title="IIOT Dashboard", layout="wide")
 
-# Interaktiven Modus von Matplotlib aktivieren
-plt.ion()
+st.title("🏭 IIOT Learning Factory Live Dashboard")
 
-# Erstelle ein Plot-Fenster
-fig, ax = plt.subplots(figsize=(10, 6))
+db = TinyDB('bottles_data.json')
 
-print("Starte Live-Visualisierung... Schließe das Fenster zum Beenden.")
+st.sidebar.title("Einstellungen")
+auto_refresh = st.sidebar.checkbox("Auto-Refresh (1s)", value=True)
 
-try:
-    while True:
-        try:
-            # Nutzt tail(), um nur die neuesten Flaschen anzuzeigen, falls die Datei riesig wird
-            df = pd.read_csv(csv_filename).tail(50)
-            
-            ax.clear()
-            
-            # 3. Wenn noch keine Daten da sind
-            if df.empty:
-                ax.text(0.5, 0.5, 'Warte auf Daten...\n(MQTT Skript ausführen!)', 
-                        horizontalalignment='center', verticalalignment='center')
-            else:
-                # Da die Flaschen-IDs text/nummern sind, nutzen wir sie als X-Achse
-                x_labels = df['bottle'].astype(str)
-                
-                # Vibrations-Daten der drei Dispenser extrahieren
-                # .fillna(0) setzt fehlende Werte auf 0, falls eine Flasche noch nicht fertig ist
-                vib_red = df['vibration_red'].fillna(0)
-                vib_blue = df['vibration_blue'].fillna(0)
-                vib_green = df['vibration_green'].fillna(0)
-                
-                # Wir plotten alle 3 Dispenser in einem Diagramm mit entsprechenden Farben
-                ax.plot(x_labels, vib_red, marker='o', linestyle='-', color='red', label='Rot')
-                ax.plot(x_labels, vib_blue, marker='s', linestyle='-', color='blue', label='Blau')
-                ax.plot(x_labels, vib_green, marker='^', linestyle='-', color='green', label='Grün')
-                
-                # Legende aktivieren, um die Linien zuordnen zu können
-                ax.legend()
-                
-                ax.set_title("Live-Vibrationen der Dispenser pro Flasche")
-                ax.set_xlabel("Flaschen ID (Letzte 50)")
-                ax.set_ylabel("Vibration Index")
-                
-                # X-Achsen-Labels rotieren, falls sie zu lang sind
-                plt.xticks(rotation=45)
-                
-                # Raster im Hintergrund
-                ax.grid(True, linestyle='--', alpha=0.7)
+docs = db.all()
+df = pd.DataFrame(docs)
 
-            # Layout anpassen (sorgt dafür dass abgeschnittene Texte reinpassen)
-            plt.tight_layout()
-            
-            # 5. Aktualisieren und kurz warten
-            # plt.pause übernimmt das Zeichnen der Grafik für uns
-            plt.pause(2.0)
-            
-        except FileNotFoundError:
-            print("CSV-Datei noch nicht gefunden. Bitte zuerst das MQTT Skript starten!")
-            time.sleep(2)
-            
-        except Exception as e:
-            print(f"Fehler beim Zeichnen (Datei ggf. gerade beim Speichern): {e}")
-            time.sleep(1)
+if not df.empty:
+    numeric_columns = [col for col in df.columns if col not in ['bottle', 'recipe', 'drop_oscillation', 'is_cracked']]
+    
+    selected_topics = st.sidebar.multiselect(
+        "Wähle Topics (Parameter) zum Plotten:", 
+        options=numeric_columns, 
+        default=['vibration_red', 'vibration_blue', 'vibration_green']
+    )
+    
+    st.markdown(f"**Anzahl der Flaschen in der DB:** {len(df)}")
+    
+    if selected_topics:
+        # Convert bottle to string or leave as is (if string) so it's treated categorically
+        df['bottle_str'] = df['bottle'].astype(str)
+        fig = px.line(
+            df, 
+            x='bottle_str', 
+            y=selected_topics, 
+            markers=True,
+            title="Werteverlauf pro Flasche",
+            labels={"bottle_str": "Flaschen ID", "value": "Messwert", "variable": "Sensor/Topic"}
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Bitte mindestens ein Topic aus der linken Leiste auswählen.")
+        
+    st.subheader("Neueste Daten (Tabelle):")
+    st.dataframe(df.tail(10))
+    
+else:
+    st.warning("Keine Daten in der Datenbank (bottles_data.json) gefunden. Läuft das MQTT Skript?")
 
-except KeyboardInterrupt:
-    print("\nVisualisierung beendet.")
+if auto_refresh:
+    time.sleep(1)
+    st.rerun()

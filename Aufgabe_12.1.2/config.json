@@ -1,0 +1,7 @@
+{
+    "mqtt_broker": "158.180.44.197",
+    "mqtt_port": 1883,
+    "mqtt_user": "bobm",
+    "mqtt_password": "letmein",
+    "mqtt_topic": "aut/SoSe26/learning_factory_simulation/#"
+}
