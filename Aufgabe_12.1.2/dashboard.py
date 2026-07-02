@@ -28,16 +28,21 @@ if not df.empty:
     st.markdown(f"**Anzahl der Flaschen in der DB:** {len(df)}")
     
     if selected_topics:
-        # Convert bottle to string or leave as is (if string) so it's treated categorically
-        df['bottle_str'] = df['bottle'].astype(str)
+        # Use numeric order for bottles, but show the IDs as categorical labels
+        df['bottle'] = df['bottle'].astype(str)
+        df['bottle_order'] = pd.to_numeric(df['bottle'], errors='coerce')
+        df = df.sort_values('bottle_order')
+        df['bottle_str'] = df['bottle']
+
         fig = px.line(
-            df, 
-            x='bottle_str', 
-            y=selected_topics, 
+            df,
+            x='bottle_str',
+            y=selected_topics,
             markers=True,
             title="Werteverlauf pro Flasche",
             labels={"bottle_str": "Flaschen ID", "value": "Messwert", "variable": "Sensor/Topic"}
         )
+        fig.update_xaxes(type='category', tickangle=-45, tickmode='auto')
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Bitte mindestens ein Topic aus der linken Leiste auswählen.")
