@@ -23,17 +23,40 @@ csv_filename = 'bottles_data.csv'
 db = TinyDB('bottles_data.json')
 
 csv_columns = [
-    'bottle', 'recipe', 
+    'bottle', 'recipe', 'timestamp',
     'fill_red', 'vibration_red', 
     'fill_blue', 'vibration_blue', 
     'fill_green', 'vibration_green', 
     'temp', 'final_weight', 'is_cracked', 'drop_oscillation'
 ]
 
-if not os.path.exists(csv_filename):
-    with open(csv_filename, mode='w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=csv_columns)
-        writer.writeheader()
+def ensure_csv_header(filename, columns):
+    if not os.path.exists(filename):
+        with open(filename, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+        return
+
+    with open(filename, mode='r', newline='', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        header = next(reader, None)
+
+    if header is None:
+        with open(filename, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=columns)
+            writer.writeheader()
+        return
+
+    if 'timestamp' not in header:
+        with open(filename, mode='r', newline='', encoding='utf-8') as f:
+            rows = list(csv.reader(f))
+        with open(filename, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(columns)
+            for row in rows[1:]:
+                writer.writerow(row + [''])
+
+ensure_csv_header(csv_filename, csv_columns)
 
 bottle_data = {}
 
@@ -91,9 +114,10 @@ def on_message(client, userdata, message):
     bottle_id, updated_data, topic_end = transform(message.topic, message.payload)
     if bottle_id and updated_data:
         if topic_end == 'ground_truth':
+            updated_data['timestamp'] = time.strftime('%Y-%m-%d %H:%M:%S')
             print(f'Flasche {bottle_id} abgeschlossen. Speichere in CSV & TinyDB...')
             # CSV schreiben
-            with open(csv_filename, mode='a', newline='') as f:
+            with open(csv_filename, mode='a', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=csv_columns)
                 writer.writerow(updated_data)
             # TinyDB schreiben

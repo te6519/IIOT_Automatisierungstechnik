@@ -17,7 +17,7 @@ docs = db.all()
 df = pd.DataFrame(docs)
 
 if not df.empty:
-    numeric_columns = [col for col in df.columns if col not in ['bottle', 'recipe', 'drop_oscillation', 'is_cracked']]
+    numeric_columns = [col for col in df.columns if col not in ['bottle', 'recipe', 'drop_oscillation', 'is_cracked', 'timestamp']]
     
     selected_topics = st.sidebar.multiselect(
         "Wähle Topics (Parameter) zum Plotten:", 
@@ -44,6 +44,27 @@ if not df.empty:
         )
         fig.update_xaxes(type='category', tickangle=-45, tickmode='auto')
         st.plotly_chart(fig, use_container_width=True)
+
+        # Zeitdiagramm mit Zeitstempel
+        df_time = df.copy()
+        if 'timestamp' in df_time.columns:
+            df_time['timestamp'] = pd.to_datetime(df_time['timestamp'], errors='coerce')
+            time_df = df_time.dropna(subset=['timestamp'])
+            if not time_df.empty:
+                fig_time = px.line(
+                    time_df,
+                    x='timestamp',
+                    y=selected_topics,
+                    markers=True,
+                    title="Zeitliche Entwicklung ausgewählter Parameter",
+                    labels={"timestamp": "Zeit", "value": "Messwert", "variable": "Sensor/Topic"}
+                )
+                fig_time.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_time, use_container_width=True)
+            else:
+                st.warning("Für das Zeitdiagramm sind noch keine gültigen Zeitstempel vorhanden.")
+        else:
+            st.warning("Die Daten enthalten keinen Zeitstempel für das Zeitdiagramm.")
     else:
         st.info("Bitte mindestens ein Topic aus der linken Leiste auswählen.")
         
